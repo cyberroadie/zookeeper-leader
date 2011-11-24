@@ -34,13 +34,17 @@ public class NodeMonitor implements Watcher, AsyncCallback.ChildrenCallback {
     }
 
     @Override
-    public void processResult(int i, String s, Object o, List<String> children) {
+    public void processResult(int rc, String path, Object o, List<String> children) {
         logger.debug(listener.getProcessName() + "Children callback: " +
                 listener.getProcessName() + ":" + children.toString());
-        if(getLowestNumber(children) == sequenceNumber)
-            listener.startSpeaking();
-        else
+        if(rc == KeeperException.Code.Ok) {
+            if(getLowestNumber(children) == sequenceNumber)
+                listener.startSpeaking();
+            else
+                listener.stopSpeaking();
+        } else {
             listener.stopSpeaking();
+        }
     }
 
     public long getLowestNumber(List<String> children) {
@@ -87,7 +91,7 @@ public class NodeMonitor implements Watcher, AsyncCallback.ChildrenCallback {
                     createRootIfNotExists();
                     logger.debug(listener.getProcessName() + ": Putting a watch on " + ROOT);
                     zooKeeper.getChildren(ROOT, true, this, null);
-                    createZnode();
+                    sequenceNumber = createZnode();
                 } catch (InterruptedException e) {
                     logger.error("Interrupted after connection", e);
                     System.exit(1);
@@ -107,10 +111,10 @@ public class NodeMonitor implements Watcher, AsyncCallback.ChildrenCallback {
         }
     }
 
-    public void createZnode() throws InterruptedException, KeeperException {
+    public long createZnode() throws InterruptedException, KeeperException {
         znode = zooKeeper.create(znode, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
-        sequenceNumber = parseSequenceNumber(znode);
         logger.debug("Created znode: " + znode);
+        return parseSequenceNumber(znode);
     }
 
     public void createRootIfNotExists() throws InterruptedException, KeeperException {
