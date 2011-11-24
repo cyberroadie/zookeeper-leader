@@ -1,100 +1,71 @@
 package net.spike.zookeeper;
 
-import org.apache.zookeeper.WatchedEvent;
-import org.apache.zookeeper.Watcher;
-import org.apache.zookeeper.ZooKeeper;
+import org.apache.zookeeper.*;
+import org.apache.zookeeper.data.Stat;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import static org.apache.zookeeper.CreateMode.PERSISTENT;
 
 /**
  * User: cyberroadie
  * Date: 07/11/2011
  */
-public class Speaker implements Watcher, Runnable, SpeakerMonitor.SpeakerMonitorListener {
+public class Speaker implements Runnable, NodeMonitor.NodeMonitorListener {
 
     private String message;
-
-    private int sleepTime;
     private String processName;
-    private boolean doTask = false;
-    private final Object lock = new Object();
+    private long counter = 0;
+    private volatile boolean canSpeak = false;
 
-    private String znode;
-    private ZooKeeper zooKeeper;
-    private String connectionString;
-    private SpeakerMonitor speakerMonitor;
-
-    public Speaker(String message, int sleepTime, String znode) throws IOException {
+    public Speaker(String message) throws IOException, InterruptedException, KeeperException {
         this.message = message;
-        this.sleepTime = sleepTime;
-        this.processName = getProcessName();
-
-        this.znode = znode;
-        this.zooKeeper = new ZooKeeper(connectionString, 3000, this);
-
-
+        this.processName = getUniqueIdentifier();
     }
 
-    private static String getProcessName() {
-        return ManagementFactory.getRuntimeMXBean().getName();
+    private static String getUniqueIdentifier() {
+        String processName = ManagementFactory.getRuntimeMXBean().getName();
+        String processId = processName.substring(0, processName.indexOf("@"));
+        return "pid-" + processId + ".";
     }
 
     public void run() {
         try {
-            while (true) {
-                if (doTask) {
-                    FileWriter fstream = new FileWriter("out.txt");
-                    BufferedWriter out = new BufferedWriter(fstream);
-                    out.write(message + " " + processName + "\n");
-                    out.close();
-                    Thread.sleep(sleepTime);
-                } else {
-                    System.out.println("Locked: " + processName);
-                    lock.wait();
-                }
+            if (canSpeak) {
+                handleTask();
             }
-        } catch (Exception ex) {
-            System.out.println("Something went wrong: " + ex.getMessage());
-        }
-    }
-
-    public static void main(String[] args) {
-        if (args.length < 2) {
-            printUsage();
-            System.exit(1);
-        }
-        Speaker speaker = null;
-        try {
-            speaker = new Speaker(args[0], Integer.parseInt(args[1]), getProcessName());
         } catch (IOException e) {
             e.printStackTrace();
-        }
-        new Thread(speaker).start();
-    }
-
-    private static void printUsage() {
-        System.out.println("program [message] [wait between messages in millisecond]");
-    }
-
-    public void exists(byte[] data) {
-        if (data == null) {
-            if (doTask) doTask = false;
-        } else {
-            doTask = true;
-            lock.notify();
+            System.exit(1);
         }
     }
 
-    public void closing(int rc) {
-        synchronized (this) {
-            doTask = false;
-        }
+    public void handleTask() throws IOException {
+        FileWriter fstream = new FileWriter("out.txt");
+        BufferedWriter out = new BufferedWriter(fstream);
+        out.write(message + ": " + counter++ + " " + processName + "\n");
+        out.close();
     }
 
-    public void process(WatchedEvent watchedEvent) {
-        speakerMonitor.process(watchedEvent);
+    @Override
+    public void startSpeaking() {
+        this.canSpeak = true;
+    }
+
+    @Override
+    public void stopSpeaking() {
+        this.canSpeak = false;
+    }
+
+    @Override
+    public String getProcessName() {
+        return processName;
     }
 }
