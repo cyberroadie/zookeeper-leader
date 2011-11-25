@@ -123,4 +123,8 @@ public class NodeMonitor implements Watcher, AsyncCallback.ChildrenCallback {
             zooKeeper.create(ROOT, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, PERSISTENT);
         }
     }
+
+    public void setSequenceNumber(long sequenceNumber) {
+        this.sequenceNumber = sequenceNumber;
+    }
 }
