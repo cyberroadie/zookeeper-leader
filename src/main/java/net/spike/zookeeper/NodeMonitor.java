@@ -24,8 +24,17 @@ public class NodeMonitor implements Watcher, AsyncCallback.ChildrenCallback {
     private NodeMonitorListener listener = null;
     private String znode;
 
-    public NodeMonitor() throws IOException, InterruptedException, KeeperException {
+    /**
+     * Start method to give the listener a change to set itself so
+     * as to receive all messages
+     * @throws IOException
+     */
+    public void start() throws IOException {
         this.zooKeeper = new ZooKeeper("localhost:2181", 3000, this);
+    }
+
+    public void setZooKeeper(ZooKeeper zooKeeper) {
+        this.zooKeeper = zooKeeper;
     }
 
     public void setListener(NodeMonitorListener monitor) {
@@ -120,7 +129,11 @@ public class NodeMonitor implements Watcher, AsyncCallback.ChildrenCallback {
     public void createRootIfNotExists() throws InterruptedException, KeeperException {
         Stat stat = zooKeeper.exists(ROOT, false);
         if (stat == null) {
-            zooKeeper.create(ROOT, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, PERSISTENT);
+            try {
+                zooKeeper.create(ROOT, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, PERSISTENT);
+            } catch (KeeperException.NodeExistsException ex) {
+                // If znode gets created in between exists and create by another client ignore error
+            }
         }
     }
 

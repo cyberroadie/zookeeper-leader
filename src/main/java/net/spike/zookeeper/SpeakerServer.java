@@ -37,6 +37,7 @@ public class SpeakerServer {
             speaker = new Speaker(args[0]);
             monitor = new NodeMonitor();
             monitor.setListener(speaker);
+            monitor.start();
         } catch (Exception e) {
             e.printStackTrace();
             System.exit(1);
